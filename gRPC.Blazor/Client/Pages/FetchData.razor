@@ -1,0 +1,61 @@
+﻿@page "/fetchdata" 
+@using gRPC.Blazor.Server.Proto
+// replace using statement with your namespace
+@inject WeatherForecasts.WeatherForecastsClient WeatherForecastsClient 
+
+<h1>Weather forecast</h1> 
+<p>This component demonstrates fetching data from the server.</p> 
+
+@if (forecasts == null) 
+{ 
+	<p><em>Loading...</em></p> 
+} 
+else 
+{ 
+	<button @onclick="getMore" >Load more</button>
+	<button>End</button>
+	<table class="table"> 
+	<thead> 
+	<tr> 
+	<th>Date</th> 
+	<th>Temp. (C)</th> 
+	<th>Summary</th> 
+	</tr> 
+	</thead> 
+	<tbody> 
+	@foreach (var forecast in forecasts) 
+	{ 
+		<tr> 
+		<td>@forecast.DateTimeStamp.ToDateTime().ToShortDateString()</td> 
+		<td>@forecast.TemperatureC</td> 
+		<td>@forecast.Summary</td> 
+		</tr> 
+	} 
+	</tbody> 
+	</table> 
+} 
+
+@code 
+{
+	private List<WeatherForecast> forecasts = new List<WeatherForecast>();
+	private Grpc.Core.AsyncDuplexStreamingCall<WeatherForecast, WeatherReply> request;
+	protected override async Task OnInitializedAsync() 
+	{
+		request = WeatherForecastsClient.GetWeather();
+		await getMore();
+		while (await request.ResponseStream.MoveNext(new System.Threading.CancellationToken()))
+		{
+			forecasts.AddRange(request.ResponseStream.Current.Forecasts);			
+			await this.InvokeAsync(StateHasChanged);
+			Console.WriteLine("Got Forecast" + request.ResponseStream.Current.Forecasts.Count);
+		}
+		
+	}
+	private async Task getMore()
+	{
+		
+		Console.WriteLine("getting more");
+		await request.RequestStream.WriteAsync(new WeatherForecast());
+		await request.RequestStream.CompleteAsync();
+	}
+}
