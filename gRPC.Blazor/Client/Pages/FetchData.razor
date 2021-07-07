@@ -1,61 +1,124 @@
-﻿@page "/fetchdata" 
+﻿@page "/fetchdata"
 @using gRPC.Blazor.Server.Proto
 // replace using statement with your namespace
-@inject WeatherForecasts.WeatherForecastsClient WeatherForecastsClient 
+@inject WeatherForecasts.WeatherForecastsClient WeatherForecastsClient
 
-<h1>Weather forecast</h1> 
-<p>This component demonstrates fetching data from the server.</p> 
+<h1>Weather forecast</h1>
+<p>This component demonstrates fetching data from the server.</p>
 
-@if (forecasts == null) 
-{ 
-	<p><em>Loading...</em></p> 
-} 
-else 
-{ 
-	<button @onclick="getMore" >Load more</button>
-	<button>End</button>
-	<table class="table"> 
-	<thead> 
-	<tr> 
-	<th>Date</th> 
-	<th>Temp. (C)</th> 
-	<th>Summary</th> 
-	</tr> 
-	</thead> 
-	<tbody> 
-	@foreach (var forecast in forecasts) 
-	{ 
-		<tr> 
-		<td>@forecast.DateTimeStamp.ToDateTime().ToShortDateString()</td> 
-		<td>@forecast.TemperatureC</td> 
-		<td>@forecast.Summary</td> 
-		</tr> 
-	} 
-	</tbody> 
-	</table> 
-} 
+<button @onclick="getMore">Load Weather</button>
+<button @onclick="end">End</button>
+<div class="row">
+    <div class="col">
+        <h3>Stream</h3>
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Temp. (C)</th>
+                    <th>Summary</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (forecastsStream == null)
+                {
+                    <p><em>Loading...</em></p>
+                }
+                else
+                {
 
-@code 
+                    @foreach (var forecast in forecastsStream)
+                    {
+                        <tr>
+                            <td>@forecast.DateTimeStamp.ToDateTime().ToShortDateString()</td>
+                            <td>@forecast.TemperatureC</td>
+                            <td>@forecast.Summary</td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+    <div class="col">
+
+        <h3>No stream</h3>
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Temp. (C)</th>
+                    <th>Summary</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (forecasts == null)
+                {
+                    <p><em>Loading...</em></p>
+                }
+                else
+                {
+                    @foreach (var forecast in forecasts)
+                    {
+                        <tr>
+                            <td>@forecast.DateTimeStamp.ToDateTime().ToShortDateString()</td>
+                            <td>@forecast.TemperatureC</td>
+                            <td>@forecast.Summary</td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@code
 {
-	private List<WeatherForecast> forecasts = new List<WeatherForecast>();
-	private Grpc.Core.AsyncDuplexStreamingCall<WeatherForecast, WeatherReply> request;
-	protected override async Task OnInitializedAsync() 
-	{
-		request = WeatherForecastsClient.GetWeather();
-		await getMore();
-		while (await request.ResponseStream.MoveNext(new System.Threading.CancellationToken()))
-		{
-			forecasts.AddRange(request.ResponseStream.Current.Forecasts);			
-			await this.InvokeAsync(StateHasChanged);
-			Console.WriteLine("Got Forecast" + request.ResponseStream.Current.Forecasts.Count);
-		}
-		
-	}
-	private async Task getMore()
-	{
-		
-		Console.WriteLine("getting more");
-		await request.RequestStream.WriteAsync(new WeatherForecast());
-		await request.RequestStream.CompleteAsync();
-	}
+    private List<WeatherForecast> forecastsStream;
+    private IList<WeatherForecast> forecasts;
+    private WeatherRequest weatherRequest = new WeatherRequest()
+    {
+        Loops = 10,
+        NoOfRecordsPerLoop = 1,
+        TimeOut = 1000
+
+    };
+    System.Threading.CancellationTokenSource cancelToken;
+    protected override async Task OnInitializedAsync()
+    {
+        getMore();
+    }
+    private async Task LoadWeatherStream()
+    {
+        var request = WeatherForecastsClient.GetWeatherStream(weatherRequest);
+
+        while (await request.ResponseStream.MoveNext(cancelToken.Token))
+        {
+            if(forecastsStream == null)
+            {
+                forecastsStream = new List<WeatherForecast>();
+            }
+            forecastsStream.AddRange(request.ResponseStream.Current.Forecasts);
+            await this.InvokeAsync(StateHasChanged);
+            Console.WriteLine("Got Forecast" + request.ResponseStream.Current.Forecasts.Count);
+        }
+    }
+    private async Task LoadWeather()
+    {
+        var weatherReply = await WeatherForecastsClient.GetWeatherAsync(weatherRequest,cancellationToken:cancelToken.Token);
+        forecasts = weatherReply.Forecasts;
+        await this.InvokeAsync(StateHasChanged);
+    }
+    private void getMore()
+    {
+        forecastsStream = null;
+        forecasts = null;
+        cancelToken = new System.Threading.CancellationTokenSource();
+        LoadWeather();
+        LoadWeatherStream();
+    }
+    private void end()
+    {
+        cancelToken.Cancel();
+    }
+
 }

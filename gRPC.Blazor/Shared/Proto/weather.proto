@@ -4,9 +4,15 @@ option csharp_namespace = "gRPC.Blazor.Server.Proto";
 import "google/protobuf/timestamp.proto"; 
 
 service WeatherForecasts { 
-	rpc GetWeather (stream WeatherForecast) returns (stream WeatherReply); 
+	rpc GetWeatherStream(WeatherRequest) returns (stream WeatherReply); 
+	rpc GetWeather(WeatherRequest) returns (WeatherReply);
 } 
 
+message WeatherRequest{
+	int32 loops =1;
+	int32 timeOut =2;
+	int32 noOfRecordsPerLoop = 3;
+}
 message WeatherReply { 
 	repeated WeatherForecast forecasts = 1; 
 } 

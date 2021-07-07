@@ -13,28 +13,39 @@ namespace gRPC.Blazor.Server.Controllers
 		{
 			"Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
 		};
-		public override async Task GetWeather(IAsyncStreamReader<WeatherForecast> requestStream, IServerStreamWriter<WeatherReply> responseStream, ServerCallContext context)
-		{
-			while (await requestStream.MoveNext())
+        public override async Task<WeatherReply> GetWeather(WeatherRequest request, ServerCallContext context)
+        {
+			var reply = new WeatherReply();
+			var rng = new Random();
+			for (int i = 0; i < request.Loops; i++)
 			{
-				var request = requestStream.Current;
-				var rng = new Random();
-				for (int i = 0; i < 100; i++)
+				context.CancellationToken.ThrowIfCancellationRequested();
+				await Task.Delay(request.TimeOut);
+				reply.Forecasts.Add(Enumerable.Range(1, request.NoOfRecordsPerLoop).Select(index => new WeatherForecast
 				{
-					await Task.Delay(10000);
-					var reply = new WeatherReply();
-					reply.Forecasts.Add(Enumerable.Range(1, 1).Select(index => new WeatherForecast
-					{
-						DateTimeStamp = new Timestamp() { Seconds = DateTime.Now.AddDays(index).Second },
-						TemperatureC = rng.Next(20, 55),
-						Summary = Summaries[rng.Next(Summaries.Length)]
-					}));
-
-					await responseStream.WriteAsync(reply);
-
-				}
+					DateTimeStamp = new Timestamp() { Seconds = DateTime.Now.AddDays(index).Second },
+					TemperatureC = rng.Next(20, 55),
+					Summary = Summaries[rng.Next(Summaries.Length)]
+				}));
 			}
-
+			return reply;
 		}
-	}
+        public override async Task GetWeatherStream(WeatherRequest request, IServerStreamWriter<WeatherReply> responseStream, ServerCallContext context)
+        {
+			var rng = new Random();
+			for (int i = 0; i < request.Loops; i++)
+			{
+				context.CancellationToken.ThrowIfCancellationRequested();
+				await Task.Delay(request.TimeOut);
+				var reply = new WeatherReply();
+				reply.Forecasts.Add(Enumerable.Range(1, request.NoOfRecordsPerLoop).Select(index => new WeatherForecast
+				{
+					DateTimeStamp = new Timestamp() { Seconds = DateTime.Now.AddDays(index).Second },
+					TemperatureC = rng.Next(20, 55),
+					Summary = Summaries[rng.Next(Summaries.Length)]
+				}));
+				await responseStream.WriteAsync(reply);
+			}
+		}
+    }
 }
