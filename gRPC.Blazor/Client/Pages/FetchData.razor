@@ -1,6 +1,6 @@
 ﻿@page "/fetchdata"
+@implements IDisposable
 @using gRPC.Blazor.Server.Proto
-// replace using statement with your namespace
 @inject WeatherForecasts.WeatherForecastsClient WeatherForecastsClient
 
 <h1>Weather forecast</h1>
@@ -87,6 +87,7 @@
     {
         getMore();
     }
+    
     private async Task LoadWeatherStream()
     {
         var request = WeatherForecastsClient.GetWeatherStream(weatherRequest);
@@ -120,5 +121,7 @@
     {
         cancelToken.Cancel();
     }
+
+    void IDisposable.Dispose() => cancelToken.Cancel();
 
 }
